@@ -1,5 +1,5 @@
 // ---------- state ----------
-const PALETTE = ["#4f8cff", "#3ecf8e", "#ffb020", "#ff6b6b", "#c084fc", "#22d3ee", "#fb923c", "#a3e635"];
+const PALETTE = ["#8a4b3a", "#3f6b4f", "#4a5b8a", "#8a6a2f", "#6a4a6f", "#3a7a7a", "#a05a3a", "#5a7a3a"];
 
 let people = []; // {id, name, color}
 let items = [];  // {id, code, rawName, name, priceCents, discountCents, assignees:Set<personId>}
@@ -179,33 +179,39 @@ function toggleAllAssignees(itemId) {
   renderItems();
   renderResults();
 }
+function selectOnlyAssignee(itemId, personId) {
+  const it = items.find((i) => i.id === itemId);
+  if (!it) return;
+  it.assignees = new Set([personId]);
+  renderItems();
+  renderResults();
+}
 
 function renderItems() {
   const body = document.getElementById("itemsBody");
   const emptyHint = document.getElementById("emptyHint");
   body.innerHTML = "";
   emptyHint.style.display = items.length === 0 ? "block" : "none";
+  body.style.display = items.length === 0 ? "none" : "block";
   const avatarLabels = computeAvatarLabels(people);
 
   let unassignedCents = 0;
   let unassignedCount = 0;
 
   items.forEach((it) => {
-    const tr = document.createElement("tr");
-    tr.className = "item-row" + (it.assignees.size === 0 ? " unassigned" : "");
+    const row = document.createElement("div");
+    row.className = "item-row" + (it.assignees.size === 0 ? " unassigned" : "");
 
-    // Item name cell — tooltip only appears when the dictionary has a saved
-    // name that differs from what's currently shown (i.e. an actual alternative).
-    const tdName = document.createElement("td");
+    // Name + price sit on one line, like an actual receipt line item.
+    const nameCell = document.createElement("div");
     const known = it.code ? itemDict[it.code] : null;
     const hasAlt = known && known !== it.name;
-    tdName.className = "item-name-cell" + (hasAlt ? " has-alt" : "");
-    tdName.innerHTML = `
+    nameCell.className = "item-name-cell" + (hasAlt ? " has-alt" : "");
+    nameCell.innerHTML = `
       <input type="text" value="${escapeAttr(it.name)}" data-role="name" />
-      ${it.code ? `<span class="code-badge">#${escapeHtml(it.code)}${!known ? ` <a href="https://www.google.com/search?q=Costco+item+${encodeURIComponent(it.code)}" target="_blank" rel="noopener" class="lookup-link">look up ↗</a>` : ""}</span>` : ""}
       ${hasAlt ? `<div class="tooltip">Also known as <b>${escapeHtml(known)}</b></div>` : ""}
     `;
-    tdName.querySelector('[data-role="name"]').addEventListener("input", (e) => {
+    nameCell.querySelector('[data-role="name"]').addEventListener("input", (e) => {
       it.name = e.target.value;
       if (it.code) {
         itemDict[it.code] = it.name;
@@ -214,46 +220,56 @@ function renderItems() {
       }
       renderResults();
     });
-    tr.appendChild(tdName);
+    row.appendChild(nameCell);
 
-    // price
-    const tdPrice = document.createElement("td");
-    tdPrice.className = "num";
-    tdPrice.innerHTML = `<input type="number" step="0.01" value="${(it.priceCents / 100).toFixed(2)}" data-role="price" />`;
-    tdPrice.querySelector("input").addEventListener("input", (e) => {
+    const priceCell = document.createElement("div");
+    priceCell.className = "item-price-cell";
+    priceCell.innerHTML = `<input type="number" step="0.01" value="${(it.priceCents / 100).toFixed(2)}" data-role="price" />`;
+    priceCell.querySelector("input").addEventListener("input", (e) => {
       it.priceCents = toCents(e.target.value);
       renderResults();
       updateTotalsDisplay();
     });
-    tr.appendChild(tdPrice);
+    row.appendChild(priceCell);
 
-    // discount
-    const tdDisc = document.createElement("td");
-    tdDisc.className = "num";
-    tdDisc.innerHTML = `<input type="number" step="0.01" value="${(it.discountCents / 100).toFixed(2)}" data-role="discount" />`;
-    tdDisc.querySelector("input").addEventListener("input", (e) => {
+    // Secondary line: item code / lookup, discount, taxable — small and muted,
+    // like the fine print under a receipt line.
+    const metaRow = document.createElement("div");
+    metaRow.className = "item-meta";
+
+    if (it.code) {
+      const codeSpan = document.createElement("span");
+      codeSpan.className = "code-badge";
+      codeSpan.innerHTML = `#${escapeHtml(it.code)}${!known ? ` <a href="https://www.google.com/search?q=Costco+item+${encodeURIComponent(it.code)}" target="_blank" rel="noopener" class="lookup-link">look up ↗</a>` : ""}`;
+      metaRow.appendChild(codeSpan);
+    }
+
+    const discField = document.createElement("label");
+    discField.className = "meta-field";
+    discField.innerHTML = `discount <input type="number" step="0.01" value="${(it.discountCents / 100).toFixed(2)}" data-role="discount" />`;
+    discField.querySelector("input").addEventListener("input", (e) => {
       it.discountCents = toCents(e.target.value);
       renderResults();
       updateTotalsDisplay();
     });
-    tr.appendChild(tdDisc);
+    metaRow.appendChild(discField);
 
-    // taxable
-    const tdTax = document.createElement("td");
-    tdTax.style.textAlign = "center";
-    tdTax.innerHTML = `<input type="checkbox" data-role="taxable" ${it.taxable ? "checked" : ""} title="Taxable item — tax is split only among taxable items" />`;
-    tdTax.querySelector("input").addEventListener("change", (e) => {
+    const taxField = document.createElement("label");
+    taxField.className = "meta-field";
+    taxField.innerHTML = `<input type="checkbox" data-role="taxable" ${it.taxable ? "checked" : ""} /> taxable`;
+    taxField.querySelector("input").addEventListener("change", (e) => {
       it.taxable = e.target.checked;
       renderResults();
     });
-    tr.appendChild(tdTax);
+    metaRow.appendChild(taxField);
 
-    // assignees
-    const tdAssign = document.createElement("td");
-    const wrap = document.createElement("div");
-    wrap.className = "row";
+    row.appendChild(metaRow);
+
+    // Assignee circles + delete, right-aligned next to the line.
+    const assignRow = document.createElement("div");
+    assignRow.className = "item-assign";
     if (people.length === 0) {
-      wrap.innerHTML = `<span class="empty-hint">Add people first</span>`;
+      assignRow.innerHTML = `<span class="empty-hint">Add people first</span>`;
     } else {
       const allOn = it.assignees.size === people.length;
       const allBtn = document.createElement("span");
@@ -261,7 +277,7 @@ function renderItems() {
       allBtn.textContent = "ALL";
       allBtn.title = "Everyone";
       allBtn.addEventListener("click", () => toggleAllAssignees(it.id));
-      wrap.appendChild(allBtn);
+      assignRow.appendChild(allBtn);
 
       people.forEach((p) => {
         const on = it.assignees.has(p.id);
@@ -269,22 +285,24 @@ function renderItems() {
         const av = document.createElement("span");
         av.className = "avatar-toggle" + (on ? " on" : "") + (label.length > 1 ? " wide" : "");
         if (on) av.style.background = p.color;
-        av.textContent = label;
-        av.title = p.name;
+        av.innerHTML = `${escapeHtml(label)}<span class="name-tip">${escapeHtml(p.name)}</span>`;
         av.addEventListener("click", () => toggleAssignee(it.id, p.id));
-        wrap.appendChild(av);
+        av.addEventListener("dblclick", (e) => {
+          e.preventDefault();
+          selectOnlyAssignee(it.id, p.id);
+        });
+        assignRow.appendChild(av);
       });
     }
-    tdAssign.appendChild(wrap);
-    tr.appendChild(tdAssign);
+    const delBtn = document.createElement("button");
+    delBtn.className = "row-delete";
+    delBtn.textContent = "×";
+    delBtn.title = "Remove item";
+    delBtn.addEventListener("click", () => removeItem(it.id));
+    assignRow.appendChild(delBtn);
+    row.appendChild(assignRow);
 
-    // actions
-    const tdAct = document.createElement("td");
-    tdAct.innerHTML = `<button class="small-btn danger" data-role="del">Delete</button>`;
-    tdAct.querySelector("button").addEventListener("click", () => removeItem(it.id));
-    tr.appendChild(tdAct);
-
-    body.appendChild(tr);
+    body.appendChild(row);
 
     if (it.assignees.size === 0) {
       unassignedCount++;
@@ -474,19 +492,31 @@ function isPdf(file) {
 }
 
 function handleFile(file) {
-  uploadedFile = file || null;
   const preview = document.getElementById("preview");
   const scanBtn = document.getElementById("scanBtn");
   const dzFilename = document.getElementById("dzFilename");
   const dzTitle = document.getElementById("dzTitle");
 
-  if (!uploadedFile) {
+  if (!file) {
+    uploadedFile = null;
     preview.style.display = "none";
     scanBtn.disabled = true;
     dzFilename.style.display = "none";
     document.getElementById("ocrDetails").style.display = "none";
     return;
   }
+
+  if (items.length > 0) {
+    const ok = confirm("Uploading a new receipt will clear the current items. Continue?");
+    if (!ok) {
+      document.getElementById("fileInput").value = "";
+      return;
+    }
+    items = [];
+    renderItems();
+    renderResults();
+  }
+  uploadedFile = file;
 
   dzTitle.textContent = "Looks good — scanning...";
   dzFilename.textContent = uploadedFile.name;
@@ -727,6 +757,9 @@ function parseReceiptText(text) {
     return;
   }
 
+  // A fresh parse replaces the item list rather than appending — otherwise
+  // re-scanning (or re-running "Auto-detect") duplicates every item.
+  items = [];
   parsedItems.forEach((pi) => addItem(pi));
 }
 
@@ -753,6 +786,30 @@ function escapeHtml(s) {
 function escapeAttr(s) {
   return escapeHtml(s);
 }
+
+document.getElementById("clearAllBtn").addEventListener("click", () => {
+  if (!confirm("Clear everything (items, people, receipt) and start over?")) return;
+
+  items = [];
+  people = [];
+  uploadedFile = null;
+
+  document.getElementById("preview").style.display = "none";
+  document.getElementById("dzFilename").style.display = "none";
+  document.getElementById("dzTitle").textContent = "Click to upload or drag a photo here";
+  document.getElementById("scanBtn").disabled = true;
+  document.getElementById("scanBtn").textContent = "Scan with OCR";
+  document.getElementById("ocrProgress").textContent = "";
+  document.getElementById("ocrDetails").style.display = "none";
+  document.getElementById("rawText").value = "";
+  document.getElementById("fileInput").value = "";
+  document.getElementById("taxInput").value = "0.00";
+  document.getElementById("printedTotalInput").value = "";
+
+  renderPeople();
+  renderItems();
+  renderResults();
+});
 
 // ---------- init ----------
 renderPeople();
