@@ -302,6 +302,11 @@ function renderItems() {
     assignRow.appendChild(delBtn);
     row.appendChild(assignRow);
 
+    const rule = document.createElement("div");
+    rule.className = "rule";
+    rule.setAttribute("aria-hidden", "true");
+    row.appendChild(rule);
+
     body.appendChild(row);
 
     if (it.assignees.size === 0) {
@@ -312,7 +317,7 @@ function renderItems() {
 
   const warnEl = document.getElementById("unassignedWarn");
   if (unassignedCount > 0) {
-    warnEl.innerHTML = `<div class="warn-banner">${unassignedCount} item${unassignedCount > 1 ? "s" : ""} not assigned to anyone (${fmt(unassignedCents)}) — pick who's splitting them or the totals below won't balance.</div>`;
+    warnEl.innerHTML = `<div class="warn-banner">${unassignedCount} item${unassignedCount > 1 ? "s" : ""} not assigned to anyone (${fmt(unassignedCents)}) — pick who's splitting them or the totals won't balance.</div>`;
   } else {
     warnEl.innerHTML = "";
   }
@@ -427,7 +432,7 @@ function updateStickyBar() {
   peopleEl.innerHTML = split.perPerson
     .map(
       (p) =>
-        `<span class="sb-person"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)} <b>${fmt(p.total)}</b></span>`
+        `<span class="sb-person"><span class="dot" style="color:${p.color}">■</span>${escapeHtml(p.name)} <b>${fmt(p.total)}</b></span>`
     )
     .join("");
 
@@ -462,7 +467,7 @@ function renderResults() {
     card.className = "person-card";
     card.innerHTML = `
       <div>
-        <div class="name"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}</div>
+        <div class="name"><span class="dot" style="color:${p.color}">■</span>${escapeHtml(p.name)}</div>
         <div class="sub">${fmt(p.sub)} items + ${fmt(p.tax)} tax</div>
       </div>
       <div class="amt">${fmt(p.total)}</div>
@@ -654,7 +659,7 @@ async function runScan() {
       text = result.data.text;
     }
     document.getElementById("rawText").value = text;
-    progressEl.textContent = "Done. Review detected items below.";
+    progressEl.textContent = "Done. Hit Next to review detected items.";
     parseReceiptText(text);
   } catch (err) {
     progressEl.textContent = "Scan failed: " + err.message;
@@ -753,7 +758,7 @@ function parseReceiptText(text) {
   }
 
   if (parsedItems.length === 0) {
-    alert("Couldn't auto-detect any line items from that text. Add items manually below, or edit the raw OCR text and try again.");
+    alert("Couldn't auto-detect any line items from that text. Add items manually in step 3, or edit the raw OCR text and try again.");
     return;
   }
 
@@ -778,6 +783,58 @@ document.getElementById("taxInput").addEventListener("input", () => {
   renderResults();
 });
 document.getElementById("printedTotalInput").addEventListener("input", updateTotalsDisplay);
+
+// ---------- step flow ----------
+// One step on screen at a time. Changing step tears the receipt off (CSS
+// .tear-off), then the new step is swapped in and fed in from the top (.feed-in).
+const STEP_COUNT = document.querySelectorAll(".step").length;
+const wrapEl = document.querySelector(".wrap");
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+let currentStep = 1;
+
+function renderStep() {
+  document.querySelectorAll(".step").forEach((el) => {
+    el.classList.toggle("active", Number(el.dataset.step) === currentStep);
+  });
+  document.querySelectorAll("#stepper .step-num").forEach((btn) => {
+    const step = Number(btn.dataset.goto);
+    btn.classList.toggle("current", step === currentStep);
+    btn.classList.toggle("done", step < currentStep);
+    if (step === currentStep) btn.setAttribute("aria-current", "step");
+    else btn.removeAttribute("aria-current");
+  });
+  document.getElementById("backBtn").style.visibility = currentStep === 1 ? "hidden" : "visible";
+  document.getElementById("nextBtn").style.visibility = currentStep === STEP_COUNT ? "hidden" : "visible";
+  window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+function goToStep(n) {
+  const target = Math.min(Math.max(n, 1), STEP_COUNT);
+  if (target === currentStep) return;
+  // Forward tears off to the right, back to the left.
+  wrapEl.style.setProperty("--tear-dir", target > currentStep ? 1 : -1);
+  currentStep = target;
+  if (reduceMotion.matches) {
+    renderStep();
+    return;
+  }
+  // If a tear is already running (rapid clicks), it just lands on the latest step.
+  wrapEl.classList.remove("feed-in");
+  wrapEl.classList.add("tear-off");
+}
+
+wrapEl.addEventListener("animationend", (e) => {
+  if (e.target !== wrapEl || e.animationName !== "tear-off") return;
+  renderStep();
+  wrapEl.classList.remove("tear-off");
+  wrapEl.classList.add("feed-in");
+});
+
+document.getElementById("backBtn").addEventListener("click", () => goToStep(currentStep - 1));
+document.getElementById("nextBtn").addEventListener("click", () => goToStep(currentStep + 1));
+document.querySelectorAll("#stepper .step-num").forEach((btn) => {
+  btn.addEventListener("click", () => goToStep(Number(btn.dataset.goto)));
+});
 
 // ---------- utils ----------
 function escapeHtml(s) {
@@ -809,6 +866,7 @@ document.getElementById("clearAllBtn").addEventListener("click", () => {
   renderPeople();
   renderItems();
   renderResults();
+  goToStep(1);
 });
 
 // ---------- init ----------

@@ -7,7 +7,7 @@
 <link rel="icon" href="favicon.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --desk: #ddd4bf;
@@ -17,21 +17,22 @@
     --ink-soft: #766b57;
     --ink-faint: #a89b81;
     --line: #cabb98;
-    --line-soft: #e0d4b4;
     --accent: #9c3b34;
     --good: #3f7d4f;
     --bad: #b0413e;
     --warn: #96681a;
-    --radius: 4px;
-    --radius-sm: 3px;
     --shadow-paper: 0 30px 60px -25px rgba(40, 30, 10, 0.35), 0 10px 24px -12px rgba(40, 30, 10, 0.22);
+    /* a receipt printer has no line art, so rules are rows of typed characters clipped to the paper width */
+    --dashes: "------------------------------------------------------------------------------------------------------------------------";
+    --equals: "========================================================================================================================";
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
     margin: 0;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-variant-numeric: tabular-nums;
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
     background: var(--desk);
     color: var(--ink);
     padding: 48px 20px 160px;
@@ -39,117 +40,134 @@
     -webkit-font-smoothing: antialiased;
     display: flex;
     justify-content: center;
+    overflow-x: hidden;
   }
   .wrap {
     position: relative;
     width: 100%; max-width: 620px;
     background: var(--paper);
     box-shadow: var(--shadow-paper);
-    padding: 30px 30px 46px;
+    padding: 34px 30px 46px;
     display: flex; flex-direction: column; gap: 0;
   }
+  /* torn edges: desk-coloured notches cut into the top and bottom of the paper */
   .wrap::before, .wrap::after {
-    content: ""; position: absolute; left: 0; right: 0; height: 12px;
+    content: ""; position: absolute; left: 0; right: 0; height: 9px;
     background-image:
       linear-gradient(135deg, var(--desk) 50%, transparent 50%),
       linear-gradient(-135deg, var(--desk) 50%, transparent 50%);
-    background-size: 18px 18px; background-position: left top; background-repeat: repeat-x;
+    background-size: 18px 18px; background-position: left bottom; background-repeat: repeat-x;
   }
-  .wrap::before { top: -12px; }
-  .wrap::after { bottom: -12px; transform: scaleY(-1); }
+  .wrap::before { top: 0; }
+  .wrap::after { bottom: 0; transform: scaleY(-1); }
 
   .brand {
-    font-size: 15px; font-weight: 700; letter-spacing: 0.08em;
-    text-transform: uppercase; margin-bottom: 28px; text-align: center;
+    font-size: 22px; font-weight: 700; line-height: 1.2;
+    letter-spacing: 0.3em; text-indent: 0.3em; text-align: center;
   }
   .brand-dot { color: var(--accent); }
 
-  /* step flow */
-  .step { display: grid; grid-template-columns: 34px 1fr; gap: 18px; position: relative; }
-  .step-rail { display: flex; flex-direction: column; align-items: center; }
-  .step-num {
-    width: 26px; height: 26px; border-radius: var(--radius); flex-shrink: 0;
-    background: transparent; border: 1px solid var(--line);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 700; color: var(--ink-soft);
+  .rule, .step-line {
+    overflow: hidden; white-space: nowrap; line-height: 1;
+    font-size: 12px; color: var(--ink-faint); user-select: none;
   }
-  .step-line { flex: 1; width: 1px; background: repeating-linear-gradient(var(--line-soft) 0 4px, transparent 4px 8px); margin: 6px 0; min-height: 20px; }
-  .step:last-of-type .step-line { display: none; }
-  .step-body { padding-bottom: 32px; }
-  .step:not(:last-of-type) .panel { border-bottom: 1px dashed var(--line-soft); padding-bottom: 26px; }
+  .rule { margin: 14px 0; }
+  .rule::before, .step-line::before { content: var(--dashes); }
+  .rule.eq::before { content: var(--equals); }
 
-  .panel { padding: 0; }
+  /* step flow — one step on screen at a time */
+  .stepper { display: flex; align-items: center; gap: 4px; }
+  .step-num { padding: 2px 1px; font-weight: 500; color: var(--ink-soft); }
+  .step-num::before { content: "["; }
+  .step-num::after { content: "]"; }
+  .step-num.done { font-weight: 700; color: var(--ink); }
+  .step-num.current { font-weight: 700; background: var(--ink); color: var(--paper); }
+  .step-line { flex: 1; }
+  .step { display: none; }
+  .step.active { display: block; }
+  .step-nav { display: flex; justify-content: space-between; }
+
+  /* changing step tears the receipt off and feeds a fresh one in from the top */
+  .wrap { transform-origin: 50% 0; }
+  .wrap.tear-off { animation: tear-off 0.3s ease-in forwards; }
+  .wrap.feed-in { animation: feed-in 0.32s ease-out; }
+  @keyframes tear-off {
+    25% { transform: translateY(-5px) rotate(calc(var(--tear-dir, 1) * -0.5deg)); opacity: 1; }
+    to { transform: translateY(70px) rotate(calc(var(--tear-dir, 1) * 3deg)); opacity: 0; }
+  }
+  @keyframes feed-in {
+    from { transform: translateY(-36px); opacity: 0; }
+  }
+
+  .panel { padding: 0; margin-top: 8px; }
   .panel h2 {
-    font-size: 14px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
-    color: var(--ink); margin: 0 0 3px;
+    font-size: 15px; font-weight: 700; letter-spacing: 0.08em; text-align: center;
+    color: var(--ink); margin: 0 0 14px;
   }
-  .panel .desc { font-size: 12px; color: var(--ink-soft); margin: 0 0 14px; }
-  .panel .head-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
-  .count-badge {
-    font-size: 11px; font-weight: 700; color: var(--ink-soft);
-    background: var(--paper2); border: 1px solid var(--line-soft);
-    padding: 3px 9px; border-radius: var(--radius-sm); white-space: nowrap;
-  }
+  .panel h2::before { content: "*** "; content: "*** " / ""; }
+  .panel h2::after { content: " ***"; content: " ***" / ""; }
+  .panel .desc { font-size: 12px; color: var(--ink-soft); text-align: center; margin: -10px 0 14px; }
 
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
+  /* buttons are bracketed words; primary ones are reverse-printed */
   button {
-    background: var(--paper);
+    background: transparent;
     color: var(--ink);
-    border: 1px solid var(--ink);
-    border-radius: var(--radius-sm);
-    padding: 8px 15px;
-    font-size: 12.5px;
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
-  }
-  button:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
-  button.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-  button.primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
-  button.danger { border-color: var(--line); color: var(--ink-soft); }
-  button.danger:hover:not(:disabled) { background: var(--bad); border-color: var(--bad); color: #fff; }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
-  .small-btn { padding: 4px 10px; font-size: 11px; }
-
-  input[type="text"], input[type="number"] {
-    background: var(--paper2);
-    color: var(--ink);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    padding: 8px 10px;
+    border: none;
+    border-radius: 0;
+    padding: 5px 6px;
+    font: inherit;
     font-size: 13px;
-    font-family: inherit;
-    transition: border-color 0.15s ease;
+    font-weight: 700;
+    letter-spacing: inherit;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  button::before { content: "[ "; content: "[ " / ""; }
+  button::after { content: " ]"; content: " ]" / ""; }
+  button:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+  button.primary { background: var(--ink); color: var(--paper); }
+  button.primary:hover:not(:disabled) { background: var(--accent); }
+  button.danger { color: var(--ink-soft); }
+  button.danger:hover:not(:disabled) { background: var(--bad); color: var(--paper); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .small-btn { padding: 2px 4px; font-size: 11px; }
+
+  /* fields are blanks on the paper: a dotted line to write on */
+  input[type="text"], input[type="number"] {
+    background: transparent;
+    color: var(--ink);
+    border: none;
+    border-bottom: 1px dotted var(--ink-soft);
+    border-radius: 0;
+    padding: 5px 2px;
+    font: inherit;
+    font-size: 13px;
+    letter-spacing: inherit;
+    text-transform: uppercase;
   }
   input[type="text"]:focus, input[type="number"]:focus {
-    outline: none; border-color: var(--accent);
+    outline: none; border-bottom: 1px solid var(--accent);
   }
   input[type="text"]::placeholder, input[type="number"]::placeholder { color: var(--ink-faint); }
   input[type="file"] { display: none; }
-  input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+  input[type="checkbox"] {
+    -webkit-appearance: none; appearance: none;
+    margin: 0; font: inherit; color: inherit; cursor: pointer;
+  }
+  input[type="checkbox"]::before { content: "[ ]"; white-space: pre; }
+  input[type="checkbox"]:checked::before { content: "[X]"; color: var(--accent); }
+  input[type="checkbox"]:focus-visible { outline: 1px dotted var(--accent); outline-offset: 2px; }
   input[type="number"]::-webkit-inner-spin-button,
   input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   input[type="number"] { -moz-appearance: textfield; }
 
   /* dropzone */
-  .dropzone {
-    display: flex; align-items: center; gap: 14px;
-    border: 1.5px dashed var(--line);
-    border-radius: var(--radius-sm);
-    padding: 18px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    background: var(--paper2);
-  }
-  .dropzone:hover, .dropzone.drag { border-color: var(--accent); }
-  .dropzone .icon {
-    width: 36px; height: 36px; border-radius: var(--radius-sm); flex-shrink: 0;
-    background: var(--paper); border: 1px solid var(--line);
-    display: flex; align-items: center; justify-content: center; color: var(--accent);
-  }
-  .dropzone .icon svg { width: 17px; height: 17px; }
+  .dropzone { display: flex; align-items: baseline; gap: 12px; padding: 2px 0; cursor: pointer; }
+  .dropzone .icon { flex-shrink: 0; font-size: 13px; font-weight: 700; color: var(--accent); }
+  .dropzone:hover .icon, .dropzone.drag .icon { background: var(--accent); color: var(--paper); }
+  .dropzone:hover .t1, .dropzone.drag .t1 { color: var(--accent); }
   .dropzone .text { flex: 1; min-width: 0; }
   .dropzone .text .t1 { font-size: 13px; font-weight: 700; }
   .dropzone .text .t2 { font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
@@ -159,189 +177,168 @@
 
   textarea {
     width: 100%; min-height: 120px;
-    background: var(--paper2); color: var(--ink);
-    border: 1px solid var(--line); border-radius: var(--radius-sm);
-    padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 12px; resize: vertical;
+    background: transparent; color: var(--ink);
+    border: 1px dotted var(--ink-soft); border-radius: 0;
+    padding: 10px; font: inherit; font-size: 12px; resize: vertical;
   }
-  textarea:focus { outline: none; border-color: var(--accent); }
+  textarea:focus { outline: none; border: 1px solid var(--accent); }
   details { margin-top: 14px; }
   details summary {
-    cursor: pointer; font-size: 11.5px; color: var(--ink-soft); font-weight: 700;
-    list-style: none; display: flex; align-items: center; gap: 6px;
+    cursor: pointer; font-size: 11.5px; color: var(--ink-soft); font-weight: 600;
+    list-style: none; display: flex; align-items: baseline; gap: 6px;
   }
-  details summary::before { content: "▸"; font-size: 10px; transition: transform 0.15s; }
-  details[open] summary::before { transform: rotate(90deg); }
+  details summary::before { content: "[+]"; flex-shrink: 0; }
+  details[open] summary::before { content: "[-]"; }
   details summary::-webkit-details-marker { display: none; }
 
   .progress { font-size: 11.5px; color: var(--accent); font-weight: 700; }
 
-  /* people */
+  /* people — each name is reverse-printed in that person's colour */
   .people-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
   .chip {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 7px 7px 7px 14px; border-radius: 999px;
-    border: 1px solid transparent; font-size: 13px; font-weight: 700;
-    cursor: pointer; user-select: none; background: var(--paper2);
-    transition: all 0.15s ease;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 4px 3px 8px; font-size: 13px; font-weight: 700;
+    user-select: none; background: var(--paper2);
   }
-  .chip.on { color: #fff; border-color: transparent; }
-  .chip .x { opacity: 0.75; font-weight: bold; margin-left: 1px; width: 16px; height:16px; display:flex; align-items:center; justify-content:center; border-radius:50%; }
-  .chip .x:hover { opacity: 1; background: rgba(0,0,0,0.15); }
-  .avatar-dot { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .chip.on { color: var(--paper); }
+  .chip .x { padding: 0 4px; opacity: 0.8; cursor: pointer; }
+  .chip .x:hover { opacity: 1; background: rgba(0,0,0,0.2); }
 
-  .inline-add { display: flex; gap: 8px; }
+  .inline-add { display: flex; align-items: baseline; gap: 8px; }
   .inline-add input { flex: 1; min-width: 160px; }
 
   /* items list — receipt-style lines: name+price on one line, fine print below */
-  .items-list {
-    margin-top: 10px;
-    background: #ffffff;
-    border: 1px solid var(--line-soft);
-    border-radius: var(--radius-sm);
-    padding: 2px 14px;
-    box-shadow: 0 6px 16px -10px rgba(40, 30, 10, 0.28);
-  }
-  .items-list .item-row:last-child { border-bottom: none; }
+  .items-list .rule { grid-area: rule; margin: 8px 0 0; }
   .item-row {
     display: grid;
     grid-template-columns: 1fr auto;
-    grid-template-areas: "name price" "meta meta" "assign assign";
-    row-gap: 5px;
-    padding: 12px 0;
-    border-bottom: 1px dashed var(--line-soft);
-    transition: background 0.15s ease;
+    grid-template-areas: "name price" "meta meta" "assign assign" "rule rule";
+    row-gap: 4px;
+    padding-top: 10px;
   }
-  .item-row:hover { background: var(--paper2); }
-  .item-row.unassigned { background: rgba(176, 65, 58, 0.06); }
-  .item-row.unassigned:hover { background: rgba(176, 65, 58, 0.1); }
 
-  .item-name-cell { grid-area: name; position: relative; min-width: 0; }
+  .item-name-cell { grid-area: name; position: relative; min-width: 0; display: flex; align-items: baseline; gap: 6px; }
   .item-name-cell.has-alt { cursor: help; }
+  /* unassigned lines get flagged in the margin */
+  .item-row.unassigned .item-name-cell::before { content: "!!"; font-weight: 700; color: var(--bad); }
   .item-name-cell input {
-    width: 100%; border: none; border-bottom: 1px solid transparent; background: transparent;
-    padding: 2px 0; font-size: 15px; font-weight: 600; color: var(--ink);
-    text-transform: uppercase;
+    flex: 1; min-width: 0; border-bottom: 1px solid transparent;
+    padding: 2px 0; font-size: 15px; font-weight: 600;
   }
-  .item-name-cell input:focus { outline: none; border-bottom-color: var(--accent); }
-  .item-name-cell .code-badge { font-size: 10.5px; color: var(--ink-faint); }
-  .item-name-cell .lookup-link { color: var(--ink-soft); text-decoration: none; border-bottom: 1px dotted var(--ink-faint); }
-  .item-name-cell .lookup-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .item-name-cell input:focus { border-bottom-color: var(--accent); }
+  .code-badge { font-size: 10.5px; color: var(--ink-faint); }
+  .lookup-link { color: var(--ink-soft); text-decoration: none; border-bottom: 1px dotted var(--ink-faint); }
+  .lookup-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
   .item-price-cell { grid-area: price; }
   .item-price-cell input {
-    width: 80px; text-align: right; border: none; border-bottom: 1px solid transparent; background: transparent;
-    font-size: 15px; font-weight: 700; color: var(--ink); padding: 2px 0;
+    width: 84px; text-align: right; border-bottom: 1px solid transparent;
+    font-size: 15px; font-weight: 700; padding: 2px 0;
   }
-  .item-price-cell input:focus { outline: none; border-bottom-color: var(--accent); }
+  .item-price-cell input:focus { border-bottom-color: var(--accent); }
 
-  .item-meta { grid-area: meta; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--ink-soft); }
-  .item-meta .meta-field { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .item-meta { grid-area: meta; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--ink-soft); }
+  .item-meta .meta-field { display: flex; align-items: baseline; gap: 5px; cursor: pointer; }
   .item-meta .meta-field input[type="number"] {
-    width: 52px; border: none; border-bottom: 1px dotted var(--line); background: transparent;
+    width: 52px; border-bottom: 1px dotted var(--line);
     padding: 0 0 1px; text-align: right; font-size: 11.5px; color: var(--ink-soft); cursor: text;
   }
-  .item-meta .meta-field input[type="number"]:focus { outline: none; border-bottom-color: var(--accent); color: var(--ink); }
-  .item-meta .meta-field input[type="checkbox"] { width: 12px; height: 12px; }
+  .item-meta .meta-field input[type="number"]:focus { border-bottom-color: var(--accent); color: var(--ink); }
 
-  .item-assign { grid-area: assign; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-  .row-delete {
-    border: none; background: transparent; color: var(--ink-faint);
-    font-size: 17px; line-height: 1; padding: 2px 4px; cursor: pointer;
-  }
-  .row-delete:hover { color: var(--bad); background: transparent; }
+  .item-assign { grid-area: assign; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .row-delete { color: var(--ink-faint); padding: 4px 1px; line-height: 1; }
+  .row-delete::before { content: "["; }
+  .row-delete::after { content: "]"; }
+  .row-delete:hover:not(:disabled) { color: var(--bad); background: transparent; }
 
   .tooltip {
     position: absolute; z-index: 50; left: 0; top: 100%; margin-top: 6px;
     background: var(--paper); border: 1px solid var(--ink);
-    border-radius: var(--radius-sm); padding: 10px 12px; width: 240px;
+    padding: 10px 12px; width: 240px;
     font-size: 12px; box-shadow: 0 10px 24px -12px rgba(40,30,10,0.45); display: none;
   }
   .item-name-cell:hover .tooltip { display: block; }
-  .tooltip b { color: var(--ink); text-transform: uppercase; }
+  .tooltip b { color: var(--ink); }
+  /* assignee toggles: bracketed initials, reverse-printed in the person's colour when on */
   .avatar-toggle {
-    position: relative;
-    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700;
-    color: var(--ink-soft); background: var(--paper2);
-    border: 1.5px solid var(--line); cursor: pointer;
-    transition: all 0.15s ease; user-select: none;
+    position: relative; flex-shrink: 0;
+    padding: 4px 1px; font-size: 12px; font-weight: 700; line-height: 1;
+    color: var(--ink-faint); cursor: pointer; user-select: none;
   }
-  .avatar-toggle:hover { border-color: var(--accent); }
+  .avatar-toggle::before { content: "["; }
+  .avatar-toggle::after { content: "]"; }
+  .avatar-toggle:hover { color: var(--ink); }
   .avatar-toggle .name-tip {
     position: absolute; left: 50%; bottom: 100%; margin-bottom: 7px;
     transform: translateX(-50%);
     background: var(--ink); color: var(--paper);
     font-size: 11px; font-weight: 600; white-space: nowrap;
-    padding: 4px 8px; border-radius: var(--radius-sm);
+    padding: 4px 8px;
     opacity: 0; pointer-events: none;
     transition: opacity 0.15s ease; transition-delay: 0s;
   }
   .avatar-toggle:hover .name-tip { opacity: 1; transition-delay: 1s; }
-  .avatar-toggle.on { color: #fff; border-color: transparent; }
-  .avatar-toggle.wide { font-size: 9.5px; letter-spacing: -0.02em; }
-  .avatar-toggle.all { font-size: 8.5px; letter-spacing: 0.02em; border-style: dashed; }
-  .avatar-toggle.all.on { background: var(--accent); border-style: solid; }
+  .avatar-toggle.on, .avatar-toggle.on:hover { color: var(--paper); }
+  .avatar-toggle.all.on { background: var(--accent); }
 
   .warn-banner {
-    display: flex; align-items: center; gap: 8px;
-    background: rgba(150, 104, 26, 0.12);
-    border: 1px solid rgba(150, 104, 26, 0.4);
-    color: var(--warn); padding: 10px 14px; border-radius: var(--radius-sm);
-    font-size: 12px; font-weight: 700; margin-bottom: 14px;
+    display: flex; align-items: baseline; gap: 8px;
+    color: var(--warn); font-size: 12px; font-weight: 700; margin-bottom: 4px;
   }
+  .warn-banner::before { content: "!!"; flex-shrink: 0; }
 
   /* totals */
-  .totals-grid { display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; font-size: 13.5px; align-items: center; }
+  .totals-grid { display: grid; grid-template-columns: 1fr auto; gap: 10px 8px; font-size: 13.5px; align-items: baseline; }
   .totals-grid .label { color: var(--ink-soft); }
   .totals-grid .val { text-align: right; font-weight: 700; }
   .totals-grid input { width: 100px; text-align: right; }
-  .grand { font-size: 18px; font-weight: 700; border-top: 1px solid var(--ink); margin-top: 8px; padding-top: 14px; }
-  .printed-row { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line-soft); }
+  .totals-grid .rule { grid-column: 1 / -1; margin: 2px 0; }
+  .grand { font-size: 18px; font-weight: 700; }
+  .printed-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
   .printed-row label { font-size: 12px; color: var(--ink-soft); }
   .printed-row input { width: 100px; text-align: right; }
 
+  /* dot leaders run from a label out to its amount */
+  .totals-grid .label:not(.grand), .person-card .name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .totals-grid .label:not(.grand)::after, .person-card .name::after {
+    content: "........................................................................................................................";
+    content: "........................................................................................................................" / "";
+    flex: 1; min-width: 0; overflow: hidden; white-space: nowrap;
+    font-weight: 400; color: var(--ink-faint);
+  }
+
   /* results */
   .people-results { display: flex; flex-direction: column; gap: 10px; }
-  .person-card {
-    display: flex; justify-content: space-between; align-items: center;
-    background: var(--paper2); border: 1px solid var(--line-soft); border-radius: var(--radius-sm);
-    padding: 13px 15px; border-left: 3px solid transparent; transition: all 0.15s ease;
-  }
-  .person-card:hover { border-color: var(--line); }
-  .person-card .name { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; }
-  .dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
-  .person-card .amt { font-size: 18px; font-weight: 700; }
-  .person-card .sub { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+  .person-card { display: flex; align-items: baseline; gap: 8px; }
+  .person-card > div:first-child { flex: 1; min-width: 0; }
+  .person-card .name { font-weight: 700; font-size: 14px; }
+  .dot { flex-shrink: 0; }
+  .person-card .amt { font-size: 16px; font-weight: 700; }
+  .person-card .sub { font-size: 11px; color: var(--ink-soft); margin-top: 1px; padding-left: 17px; }
 
   .balance-check {
-    margin-top: 14px; padding: 12px 15px; border-radius: var(--radius-sm);
-    font-size: 12.5px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    display: flex; align-items: baseline; gap: 8px;
+    margin-top: 10px; font-size: 12.5px; font-weight: 700;
   }
-  .balance-check.ok { background: rgba(63, 125, 79, 0.12); color: var(--good); border: 1px solid rgba(63, 125, 79, 0.4); }
-  .balance-check.bad { background: rgba(176, 65, 58, 0.12); color: var(--bad); border: 1px solid rgba(176, 65, 58, 0.4); }
-  .balance-check b { font-size: 14.5px; }
+  .balance-check::before { content: "**"; flex-shrink: 0; }
+  .balance-check.ok { color: var(--good); }
+  .balance-check.bad { color: var(--bad); }
+  .balance-check.bad::before { content: "!!"; }
+  .balance-check b { margin-left: auto; font-size: 14.5px; }
 
   .empty-hint { color: var(--ink-faint); font-size: 12px; padding: 14px 0; text-align: center; }
   .dict-table { margin-top: 10px; }
   .dict-table table th, .dict-table table td { padding: 7px 6px; font-size: 11.5px; }
-  .dict-table table td:nth-child(2) { text-transform: uppercase; }
 
-  .clear-all-row { text-align: center; margin-top: 36px; }
-  .clear-all-row button {
-    border: none; background: transparent; color: var(--ink-faint);
-    font-size: 11.5px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px;
-    padding: 6px 10px;
-  }
-  .clear-all-row button:hover { color: var(--bad); background: transparent; }
+  .clear-all-row { text-align: center; margin-top: 30px; }
+  .clear-all-row button { color: var(--ink-faint); font-size: 11.5px; font-weight: 600; }
 
-  /* sticky summary bar */
+  /* sticky summary bar — a stub of the same paper */
   .sticky-bar {
     position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
     background: var(--paper); border: 1px solid var(--ink);
-    border-radius: 999px; padding: 10px 14px 10px 20px;
-    display: flex; align-items: center; gap: 14px;
+    padding: 9px 14px;
+    display: flex; align-items: baseline; gap: 10px;
     max-width: min(92vw, 680px);
     box-shadow: 0 20px 40px -15px rgba(40,30,10,0.4);
     font-size: 13px; z-index: 100;
@@ -349,30 +346,29 @@
   }
   .sticky-bar.show { opacity: 1; pointer-events: auto; }
   .sticky-bar .sb-total { display: flex; align-items: baseline; gap: 6px; flex-shrink: 0; }
-  .sticky-bar .sb-label { color: var(--ink-soft); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .sticky-bar .sb-total::after { content: "|"; margin-left: 4px; color: var(--ink-faint); }
+  .sticky-bar .sb-label { color: var(--ink-soft); font-size: 11px; }
   .sticky-bar .sb-amt { font-weight: 700; font-size: 15px; }
   .sticky-bar .sb-people {
-    display: flex; align-items: center; gap: 14px;
+    display: flex; align-items: baseline; gap: 14px;
     overflow-x: auto; scrollbar-width: none;
-    padding-left: 14px; border-left: 1px dashed var(--line);
     min-width: 0;
   }
   .sticky-bar .sb-people::-webkit-scrollbar { display: none; }
   .sticky-bar .sb-person {
-    display: flex; align-items: center; gap: 6px;
+    display: flex; align-items: baseline; gap: 6px;
     font-size: 12px; color: var(--ink-soft); white-space: nowrap; flex-shrink: 0;
   }
-  .sticky-bar .sb-person .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .sticky-bar .sb-person b { color: var(--ink); font-weight: 700; }
-  .sticky-bar .sb-status { display: flex; align-items: center; gap: 5px; font-weight: 700; padding: 6px 13px; border-radius: 999px; font-size: 11.5px; flex-shrink: 0; }
-  .sticky-bar .sb-status.ok { background: rgba(63, 125, 79, 0.15); color: var(--good); }
-  .sticky-bar .sb-status.bad { background: rgba(176, 65, 58, 0.15); color: var(--bad); }
+  .sticky-bar .sb-status { font-weight: 700; font-size: 11.5px; white-space: nowrap; flex-shrink: 0; }
+  .sticky-bar .sb-status::before { content: "["; }
+  .sticky-bar .sb-status::after { content: "]"; }
+  .sticky-bar .sb-status.ok { color: var(--good); }
+  .sticky-bar .sb-status.bad { color: var(--bad); }
 
   @media (max-width: 560px) {
     body { padding: 34px 10px 150px; }
-    .wrap { padding: 26px 18px 40px; }
-    .step { grid-template-columns: 24px 1fr; gap: 12px; }
-    .step-num { width: 22px; height: 22px; font-size: 10.5px; }
+    .wrap { padding: 30px 18px 40px; }
     .sticky-bar { left: 14px; right: 14px; transform: none; bottom: 14px; max-width: none; }
     .sticky-bar .sb-total .sb-label { display: none; }
   }
@@ -381,110 +377,111 @@
 <body>
 <div class="wrap">
   <div class="brand">Tally<span class="brand-dot">.</span></div>
+  <div class="rule eq" aria-hidden="true"></div>
 
-  <div class="step" data-step="1">
-    <div class="step-rail"><div class="step-num">1</div><div class="step-line"></div></div>
-    <div class="step-body">
-      <div class="panel">
-        <div class="head-row"><h2>Upload receipt</h2></div>
-        <div class="desc">Photo or screenshot of your receipt.</div>
+  <nav class="stepper" id="stepper" aria-label="Steps">
+    <button class="step-num current" data-goto="1" title="Upload receipt" aria-current="step">1</button>
+    <span class="step-line" aria-hidden="true"></span>
+    <button class="step-num" data-goto="2" title="Who's splitting this?">2</button>
+    <span class="step-line" aria-hidden="true"></span>
+    <button class="step-num" data-goto="3" title="Line items">3</button>
+    <span class="step-line" aria-hidden="true"></span>
+    <button class="step-num" data-goto="4" title="Receipt totals">4</button>
+    <span class="step-line" aria-hidden="true"></span>
+    <button class="step-num" data-goto="5" title="Who owes what">5</button>
+  </nav>
+  <div class="rule eq" aria-hidden="true"></div>
 
-        <label class="dropzone" id="dropzone" for="fileInput">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg></div>
-          <div class="text">
-            <div class="t1" id="dzTitle">Click to upload or drag a photo here</div>
-            <div class="t2" id="dzSub">JPG, PNG, or PDF</div>
-            <div class="filename" id="dzFilename" style="display:none"></div>
-          </div>
-        </label>
-        <input type="file" id="fileInput" accept="image/*,application/pdf" />
+  <div class="step panel active" data-step="1">
+    <div class="head-row"><h2>Upload receipt</h2></div>
+    <div class="desc">Photo or screenshot of your receipt.</div>
 
-        <div class="row" style="margin-top:14px">
-          <button id="scanBtn" class="primary" disabled>Scan with OCR</button>
-          <span id="ocrProgress" class="progress"></span>
-        </div>
-        <img id="preview" class="file-preview" style="display:none" />
-
-        <details id="ocrDetails" style="display:none">
-          <summary>Raw OCR text (for troubleshooting parse)</summary>
-          <textarea id="rawText" placeholder="OCR text will appear here after scanning..." style="margin-top:10px"></textarea>
-          <div class="row" style="margin-top:10px">
-            <button id="parseBtn">Auto-detect items from text above</button>
-          </div>
-        </details>
+    <div class="rule" aria-hidden="true"></div>
+    <label class="dropzone" id="dropzone" for="fileInput">
+      <div class="icon" aria-hidden="true">[^]</div>
+      <div class="text">
+        <div class="t1" id="dzTitle">Click to upload or drag a photo here</div>
+        <div class="t2" id="dzSub">JPG, PNG, or PDF</div>
+        <div class="filename" id="dzFilename" style="display:none"></div>
       </div>
+    </label>
+    <div class="rule" aria-hidden="true"></div>
+    <input type="file" id="fileInput" accept="image/*,application/pdf" />
+
+    <div class="row" style="margin-top:14px">
+      <button id="scanBtn" class="primary" disabled>Scan with OCR</button>
+      <span id="ocrProgress" class="progress"></span>
     </div>
+    <img id="preview" class="file-preview" style="display:none" />
+
+    <details id="ocrDetails" style="display:none">
+      <summary>Raw OCR text (for troubleshooting parse)</summary>
+      <textarea id="rawText" placeholder="OCR text will appear here after scanning..." style="margin-top:10px"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button id="parseBtn">Auto-detect items from text above</button>
+      </div>
+    </details>
   </div>
 
-  <div class="step" data-step="2">
-    <div class="step-rail"><div class="step-num">2</div><div class="step-line"></div></div>
-    <div class="step-body">
-      <div class="panel">
-        <h2>Who's splitting this?</h2>
-        <div class="inline-add">
-          <input type="text" id="newPersonName" placeholder="Add person by name" />
-          <button id="addPersonBtn" class="primary">Add</button>
-        </div>
-        <div class="people-row" id="peopleRow" style="margin-top:14px"></div>
-      </div>
+  <div class="step panel" data-step="2">
+    <h2>Who's splitting this?</h2>
+    <div class="inline-add">
+      <input type="text" id="newPersonName" placeholder="Add person by name" />
+      <button id="addPersonBtn" class="primary">Add</button>
     </div>
+    <div class="people-row" id="peopleRow" style="margin-top:14px"></div>
   </div>
 
-  <div class="step" data-step="3">
-    <div class="step-rail"><div class="step-num">3</div><div class="step-line"></div></div>
-    <div class="step-body">
-      <div class="panel">
-        <div class="head-row">
-          <h2>Line items</h2>
-        </div>
-        <div class="desc">Circle icons pick who's splitting each item. Hover a renamed item to see what it was called on the receipt.</div>
-        <div id="unassignedWarn"></div>
-        <div id="itemsBody" class="items-list"></div>
-        <div id="emptyHint" class="empty-hint">No items yet. Scan a receipt above or add one manually.</div>
-        <div class="row" style="margin-top:14px">
-          <button id="addItemBtn">+ Add item</button>
-        </div>
-
-        <details class="dict">
-          <summary>Item code dictionary (learned names, saved in this browser)</summary>
-          <div class="dict-table" id="dictTable"></div>
-        </details>
-      </div>
+  <div class="step panel" data-step="3">
+    <div class="head-row">
+      <h2>Line items</h2>
     </div>
+    <div class="desc">Bracketed initials pick who's splitting each item. Hover a renamed item to see what it was called on the receipt.</div>
+    <div id="unassignedWarn"></div>
+    <div class="rule" aria-hidden="true"></div>
+    <div id="itemsBody" class="items-list"></div>
+    <div id="emptyHint" class="empty-hint">No items yet. Scan a receipt in step 1 or add one manually.</div>
+    <div class="row" style="margin-top:14px">
+      <button id="addItemBtn">+ Add item</button>
+    </div>
+
+    <details class="dict">
+      <summary>Item code dictionary (learned names, saved in this browser)</summary>
+      <div class="dict-table" id="dictTable"></div>
+    </details>
   </div>
 
-  <div class="step" data-step="4">
-    <div class="step-rail"><div class="step-num">4</div><div class="step-line"></div></div>
-    <div class="step-body">
-      <div class="panel">
-        <h2>Receipt totals</h2>
-        <div class="totals-grid">
-          <div class="label">Subtotal (items − discounts)</div>
-          <div class="val" id="computedSubtotal">$0.00</div>
-          <div class="label">Tax</div>
-          <div class="val"><input type="number" step="0.01" id="taxInput" value="0.00" /></div>
-          <div class="label grand">Total owed</div>
-          <div class="val grand" id="computedTotal">$0.00</div>
-        </div>
-        <div class="printed-row">
-          <label for="printedTotalInput">Receipt's printed total (optional check)</label>
-          <input type="number" step="0.01" id="printedTotalInput" placeholder="0.00" />
-        </div>
-        <div id="totalCheck"></div>
-      </div>
+  <div class="step panel" data-step="4">
+    <h2>Receipt totals</h2>
+    <div class="totals-grid">
+      <div class="label">Subtotal (items − discounts)</div>
+      <div class="val" id="computedSubtotal">$0.00</div>
+      <div class="label">Tax</div>
+      <div class="val"><input type="number" step="0.01" id="taxInput" value="0.00" /></div>
+      <div class="rule eq" aria-hidden="true"></div>
+      <div class="label grand">Total owed</div>
+      <div class="val grand" id="computedTotal">$0.00</div>
     </div>
+    <div class="rule" aria-hidden="true"></div>
+    <div class="printed-row">
+      <label for="printedTotalInput">Receipt's printed total (optional check)</label>
+      <input type="number" step="0.01" id="printedTotalInput" placeholder="0.00" />
+    </div>
+    <div id="totalCheck"></div>
   </div>
 
-  <div class="step" data-step="5">
-    <div class="step-rail"><div class="step-num">5</div></div>
-    <div class="step-body">
-      <div class="panel">
-        <h2>Who owes what</h2>
-        <div class="desc">Final split, tax included proportionally.</div>
-        <div class="people-results" id="results"></div>
-        <div id="balanceCheck"></div>
-      </div>
-    </div>
+  <div class="step panel" data-step="5">
+    <h2>Who owes what</h2>
+    <div class="desc">Final split, tax included proportionally.</div>
+    <div class="people-results" id="results"></div>
+    <div class="rule eq" aria-hidden="true"></div>
+    <div id="balanceCheck"></div>
+  </div>
+
+  <div class="rule" aria-hidden="true" style="margin-top:26px"></div>
+  <div class="step-nav">
+    <button id="backBtn" style="visibility:hidden">&lt; Back</button>
+    <button id="nextBtn" class="primary">Next &gt;</button>
   </div>
 
   <div class="clear-all-row">
